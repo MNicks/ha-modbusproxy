@@ -14,7 +14,7 @@ import contextlib
 import logging.config
 from urllib.parse import urlparse
 
-__version__ = "0.6.8"
+__version__ = "0.7.0"
 
 
 DEFAULT_LOG_CONFIG = {
@@ -64,7 +64,7 @@ class Connection:
 
     async def close(self):
         if self.writer is not None:
-            self.log.debug("closing connection...")
+            self.log.info("closing connection...")
             try:
                 self.writer.close()
                 await self.writer.wait_closed()
@@ -117,7 +117,7 @@ class Client(Connection):
     def __init__(self, reader, writer):
         peer = writer.get_extra_info("peername")
         super().__init__(f"Client({peer[0]}:{peer[1]})", reader, writer)
-        self.log.debug("new client connection")
+        self.log.info("new client connection")
 
 
 class ModBus(Connection):
@@ -132,6 +132,7 @@ class ModBus(Connection):
         self.modbus_port = url.port
         self.timeout = modbus.get("timeout", None)
         self.connection_time = modbus.get("connection_time", 0)
+        self.unit_id_remapping = config.get("unit_id_remapping") or {}
         self.server = None
         self.lock = asyncio.Lock()
 
@@ -171,16 +172,35 @@ class ModBus(Connection):
         await self._write(data)
         return await self._read()
 
+    def _transform_request(self, request):
+        uid = request[6]
+        new_uid = self.unit_id_remapping.setdefault(uid, uid)
+        if uid != new_uid:
+            request = bytearray(request)
+            request[6] = new_uid
+            self.log.debug("remapping unit ID %s to %s in request", uid, new_uid)
+        return request
+
+    def _transform_reply(self, reply):
+        uid = reply[6]
+        inverse_unit_id_map = {v: k for k, v in self.unit_id_remapping.items()}
+        new_uid = inverse_unit_id_map.setdefault(uid, uid)
+        if uid != new_uid:
+            reply = bytearray(reply)
+            reply[6] = new_uid
+            self.log.debug("remapping unit ID %s to %s in reply", uid, new_uid)
+        return reply
+
     async def handle_client(self, reader, writer):
         async with Client(reader, writer) as client:
             while True:
                 request = await client.read()
                 if not request:
                     break
-                reply = await self.write_read(request)
+                reply = await self.write_read(self._transform_request(request))
                 if not reply:
                     break
-                result = await client.write(reply)
+                result = await client.write(self._transform_reply(reply))
                 if not result:
                     break
 
