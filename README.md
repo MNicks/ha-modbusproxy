@@ -27,5 +27,8 @@ The addon is only tested and compatible with hassio supervisor.
 
 
 ## Mentions
+This addon is a fork from the original addon of TCzerny
+- https://github.com/TCzerny/ha-modbusproxy
+
 This addon uses the modbus-proxy of tiagocoutinho:
 - https://github.com/tiagocoutinho/modbus-proxy
