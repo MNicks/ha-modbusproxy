@@ -14,17 +14,13 @@ import contextlib
 import logging.config
 from urllib.parse import urlparse
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 
 DEFAULT_LOG_CONFIG = {
     "version": 1,
-    "formatters": {
-        "standard": {"format": "%(asctime)s %(levelname)8s %(name)s: %(message)s"}
-    },
-    "handlers": {
-        "console": {"class": "logging.StreamHandler", "formatter": "standard"}
-    },
+    "formatters": {"standard": {"format": "%(asctime)s %(levelname)8s %(name)s: %(message)s"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "standard"}},
     "root": {"handlers": ["console"], "level": "INFO"},
 }
 
@@ -56,11 +52,8 @@ class Connection:
 
     @property
     def opened(self):
-        return (
-            self.writer is not None
-            and not self.writer.is_closing()
-            and not self.reader.at_eof()
-        )
+        return self.writer is not None and not self.writer.is_closing() and not self.reader.at_eof()
+
 
     async def close(self):
         if self.writer is not None:
@@ -163,9 +156,7 @@ class ModBus(Connection):
                     coro = self._write_read(data)
                     return await asyncio.wait_for(coro, self.timeout)
                 except Exception as error:
-                    self.log.error(
-                        "write_read error [%s/%s]: %r", i + 1, attempts, error
-                    )
+                    self.log.error("write_read error [%s/%s]: %r", i + 1, attempts, error)
                     await self.close()
 
     async def _write_read(self, data):
